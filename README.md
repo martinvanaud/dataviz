@@ -1,0 +1,3 @@
+# DataViz
+
+```export PYTHONPATH=$(pwd)```
