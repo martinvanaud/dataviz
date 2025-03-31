@@ -17,7 +17,7 @@ from riot.dto.summoner.rank import QueueType, tier_colors, Tier, Rank
 
 def save_to_csv(profile: RiotAccountDTO, match_id: str, participants: list[str]):
     # Open the CSV file in append mode ('a') to add data without overwriting
-    with open(f"{profile.puuid}_teammates.csv", mode='a', newline='', encoding='utf-8') as file:
+    with open(f"2_{profile.puuid}_teammates.csv", mode='a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
 
         # Write the match_id and its participants into the CSV file
@@ -123,14 +123,22 @@ if __name__ == "__main__":
     player_league_points = get_player_league_points(Tier(player_rank.tier), Rank(player_rank.rank), player_rank.leaguePoints)
     print(profile.gameName, player_rank.tier, player_rank.rank, player_league_points, "lp", tier_colors[Tier(player_rank.tier)])
 
-    unique_puuid = get_unique_player_ids(f"{profile.puuid}_teammates.csv")
-    teammates = []
-    teammates.append(profile)
+    matches = get_matches(profile.puuid)
 
-    total = len(unique_puuid)
-    for idx, id in enumerate(unique_puuid, start=1):
-        profile = get_profile_by_puuid(id)
-        print(f"{idx}/{total}", profile.gameName)
-        teammates.append(profile)
+    print(len(matches.muuid))
 
-    compare_gg_graph(teammates)
+    for id in matches.muuid:
+        match = get_match(id)
+        save_to_csv(profile, id, match.metadata.participants)
+
+    # unique_puuid = get_unique_player_ids(f"{profile.puuid}_teammates.csv")
+    # teammates = []
+    # teammates.append(profile)
+    #
+    # total = len(unique_puuid)
+    # for idx, id in enumerate(unique_puuid, start=1):
+    #     profile = get_profile_by_puuid(id)
+    #     print(f"{idx}/{total}", profile.gameName)
+    #     teammates.append(profile)
+    #
+    # compare_gg_graph(teammates)
