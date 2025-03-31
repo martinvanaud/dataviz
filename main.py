@@ -1,39 +1,41 @@
 import csv
-import random
-from operator import contains
+import os.path
+from time import sleep
 
 from matplotlib import pyplot as plt
 
+from commands.get_game_stats import get_player_game_info
 from commands.get_player_league_points import get_player_league_points
 from commands.get_player_rank import get_player_rank
 from riot.api.error import RiotErrorDTO
 from riot.api.game.match import get_match
 from riot.api.game.matches import get_matches
 from riot.api.summoner.profile import get_profile, get_profile_by_puuid
+from riot.dto.game.match import RiotMatchDTO
 from riot.dto.game.matches import RiotMatchesDTO
 from riot.dto.summoner.profile import RiotAccountDTO
 from riot.dto.summoner.rank import QueueType, tier_colors, Tier, Rank
 
 
-def save_to_csv(profile: RiotAccountDTO, match_id: str, participants: list[str]):
+def save_to_csv(profile: RiotAccountDTO, match: RiotMatchDTO):
     # Open the CSV file in append mode ('a') to add data without overwriting
-    with open(f"2_{profile.puuid}_teammates.csv", mode='a', newline='', encoding='utf-8') as file:
+    with open(f"{profile.puuid}_teammates.csv", mode='a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
 
+        game_info = get_player_game_info(match.info, profile.puuid)
+
         # Write the match_id and its participants into the CSV file
-        writer.writerow([match_id, *participants])
-
-
-def load_participants(matches: RiotMatchesDTO):
-    for idx, match_id in enumerate(matches.muuid, start=1):
-        try:
-            match = get_match(match_id)
-            print(f"Game {idx}: {match.metadata.participants}")
-
-            save_to_csv(profile, match_id, match.metadata.participants)
-        except RiotErrorDTO as e:
-            print(f"An error occurred for match {match_id}\nError: {e}")
-            continue
+        writer.writerow([
+            match.metadata.matchId,
+            match.info.gameMode,
+            game_info.game_duration,
+            game_info.win,
+            game_info.champion_played,
+            game_info.kills,
+            game_info.deaths,
+            game_info.assists,
+            *match.metadata.participants
+        ])
 
 
 def get_unique_player_ids(file_path: str) -> set:
@@ -49,7 +51,7 @@ def get_unique_player_ids(file_path: str) -> set:
         # Read through each row and collect the player_id (assuming player_id is the first column)
         for row in reader:
             if row:  # Make sure the row is not empty
-                match_id, *participants = row
+                match_id, game_mode, game_duration, win, champion_played, kills, deaths, assists, *participants = row
                 for participant in participants:
                     unique_player_ids.add(participant)
 
@@ -117,28 +119,60 @@ def compare_gg_graph(profiles: list[RiotAccountDTO]):
 
 
 if __name__ == "__main__":
-    profile = get_profile("French Touch", "EUW2")
+    try:
+        profile = get_profile("French Touch", "EUW2")
+        print(profile.puuid)
 
-    player_rank = get_player_rank(profile, QueueType.RANKED_SOLO)
-    player_league_points = get_player_league_points(Tier(player_rank.tier), Rank(player_rank.rank), player_rank.leaguePoints)
-    print(profile.gameName, player_rank.tier, player_rank.rank, player_league_points, "lp", tier_colors[Tier(player_rank.tier)])
+        player_rank = get_player_rank(profile, QueueType.RANKED_SOLO)
+        player_league_points = get_player_league_points(Tier(player_rank.tier), Rank(player_rank.rank), player_rank.leaguePoints)
+        print(profile.gameName, player_rank.tier, player_rank.rank, player_league_points, "lp", tier_colors[Tier(player_rank.tier)])
 
-    matches = get_matches(profile.puuid)
+        # processed_match_ids = set()
+        #
+        # if not os.path.exists(f"{profile.puuid}_teammates.csv"):
+        #
+        #     counter = 0
+        #     matches = get_matches(profile.puuid)
+        #     print(f"Found {len(matches.muuid)} games")
+        #
+        #     for match_id in matches.muuid:
+        #         if match_id in processed_match_ids:
+        #             print(f"Skipping already processed match {match_id}")
+        #             continue
+        #
+        #         sleep(1.10)
+        #         match = get_match(match_id)
+        #         print(f"Game {counter}: {match.metadata.matchId}")
+        #         save_to_csv(profile, match)
+        #
+        #         # Add match ID to processed set to prevent duplicate processing
+        #         processed_match_ids.add(match_id)
+        #         counter += 1
 
-    print(len(matches.muuid))
+        if not os.path.exists(f"{profile.puuid}_league_data.csv"):
+            unique_puuid = get_unique_player_ids(f"{profile.puuid}_teammates.csv")
+            teammates = []
+            teammates.append(profile)
 
-    for id in matches.muuid:
-        match = get_match(id)
-        save_to_csv(profile, id, match.metadata.participants)
+            total = len(unique_puuid)
+            for idx, id in enumerate(list(unique_puuid)[0:100], start=1):
+                profile = get_profile_by_puuid(id)
+                print(f"{idx}/{total}", profile.gameName)
 
-    # unique_puuid = get_unique_player_ids(f"{profile.puuid}_teammates.csv")
-    # teammates = []
-    # teammates.append(profile)
-    #
-    # total = len(unique_puuid)
-    # for idx, id in enumerate(unique_puuid, start=1):
-    #     profile = get_profile_by_puuid(id)
-    #     print(f"{idx}/{total}", profile.gameName)
-    #     teammates.append(profile)
-    #
-    # compare_gg_graph(teammates)
+                player_rank = get_player_rank(profile, QueueType.RANKED_SOLO)
+                player_league_points = get_player_league_points(
+                    Tier(player_rank.tier), Rank(player_rank.rank), player_rank.leaguePoints
+                )
+
+                # Save the player data to a CSV file
+                with open(f"{teammates[0].puuid}_league_data.csv", mode='a', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file)
+                    writer.writerow([profile.gameName, player_rank.rank, player_rank.tier, player_league_points])
+
+                # teammates.append(profile)
+                sleep(1.1)
+
+            # compare_gg_graph(teammates)
+
+    except Exception as e:
+        print(e)

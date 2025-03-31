@@ -188,7 +188,7 @@ class RiotMatchInfoDTO:
     gameType: str
     gameVersion: str
     mapId: int
-    participants: list[PlayerStats]
+    participants: dict[PlayerStats]
     platformId: str
     queueId: int
     teams: any
